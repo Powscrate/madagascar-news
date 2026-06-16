@@ -154,10 +154,10 @@ export async function fetchNewsById(id: string): Promise<NewsItem | null> {
 }
 
 export const categories = [
-  { slug: "actualites", label: "Actualités" },
-  { slug: "politique", label: "Politique" },
-  { slug: "technologie", label: "Technologie" },
-  { slug: "economie", label: "Économie" },
-  { slug: "sport", label: "Sport" },
-  { slug: "culture", label: "Culture" },
+  { slug: "actualites", label: "Actualités", emoji: "📰" },
+  { slug: "politique", label: "Politique", emoji: "🏛️" },
+  { slug: "technologie", label: "Technologie", emoji: "💻" },
+  { slug: "economie", label: "Économie", emoji: "📈" },
+  { slug: "sport", label: "Sport", emoji: "⚽" },
+  { slug: "culture", label: "Culture", emoji: "🎭" },
 ];
