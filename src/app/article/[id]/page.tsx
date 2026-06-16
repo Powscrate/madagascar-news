@@ -1,4 +1,4 @@
-import { fetchNewsById } from "@/lib/rss";
+import { fetchNewsById, fetchArticleContent } from "@/lib/rss";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Link from "next/link";
@@ -13,6 +13,10 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
 
   if (!item) notFound();
 
+  const [articleData] = await Promise.all([
+    item.link !== "#" ? fetchArticleContent(item.link) : null,
+  ]);
+
   const date = new Date(item.date).toLocaleDateString("fr-FR", {
     weekday: "long",
     day: "numeric",
@@ -21,6 +25,8 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
     hour: "2-digit",
     minute: "2-digit",
   });
+
+  const displayImage = articleData?.image || item.image;
 
   return (
     <>
@@ -43,28 +49,40 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
 
           <time className="text-sm text-neutral-500">{date}</time>
 
-          {item.image && (
+          {displayImage && (
             <div className="mt-6 rounded-xl overflow-hidden bg-neutral-100">
-              <img src={item.image} alt={item.title} className="w-full h-auto object-cover max-h-96" />
+              <img src={displayImage} alt={item.title} className="w-full h-auto object-cover max-h-96" loading="lazy" />
             </div>
           )}
 
-          <div className="mt-8 text-neutral-700 leading-relaxed space-y-4">
-            {item.snippet ? (
-              <p className="text-lg">{item.snippet}</p>
+          <div className="mt-8 text-neutral-700 leading-relaxed space-y-4 text-lg">
+            {articleData?.html ? (
+              <div dangerouslySetInnerHTML={{ __html: articleData.html }} className="article-content space-y-4" />
+            ) : item.content ? (
+              <div
+                dangerouslySetInnerHTML={{
+                  __html: item.content
+                    .replace(/<script[\s\S]*?<\/script>/gi, "")
+                    .replace(/<style[\s\S]*?<\/style>/gi, ""),
+                }}
+                className="article-content space-y-4"
+              />
             ) : (
-              <p className="text-lg">Contenu non disponible.</p>
+              <p className="text-neutral-500 italic">
+                Le contenu complet de cet article n&apos;est pas disponible.
+                Veuillez cliquer sur le lien ci-dessous pour le lire sur le site source.
+              </p>
             )}
           </div>
 
-          <div className="mt-10 pt-6 border-t border-neutral-200">
+          <div className="mt-10 pt-6 border-t border-neutral-200 flex flex-wrap items-center gap-4">
             <a
               href={item.link}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white px-6 py-3 rounded-lg font-medium transition"
             >
-              Lire l'article original sur {item.source}
+              Lire sur {item.source}
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>

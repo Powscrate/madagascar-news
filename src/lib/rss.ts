@@ -75,6 +75,53 @@ function parseRSS(xml: string, sourceName: string, category: string): NewsItem[]
   return items;
 }
 
+export async function fetchArticleContent(url: string): Promise<{ html: string; image: string } | null> {
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(10000),
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; MadagascarNews/1.0)" },
+    });
+    const html = await res.text();
+
+    let content = "";
+    const patterns = [
+      /<article[^>]*>([\s\S]*?)<\/article>/i,
+      /<div[^>]*class=["'][^"']*(?:content|article|post|entry|story|main)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i,
+      /<div[^>]*id=["'][^"']*(?:content|article|post|entry|story|main)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i,
+      /<body[^>]*>([\s\S]*?)<\/body>/i,
+    ];
+
+    for (const pattern of patterns) {
+      const m = html.match(pattern);
+      if (m) { content = m[1]; break; }
+    }
+
+    if (!content) return null;
+
+    const cleaned = content
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<nav[\s\S]*?<\/nav>/gi, "")
+      .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, "")
+      .replace(/<footer[\s\S]*?<\/footer>/gi, "")
+      .replace(/<aside[\s\S]*?<\/aside>/gi, "")
+      .replace(/<form[\s\S]*?<\/form>/gi, "")
+      .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
+      .replace(/class=["'][^"']*["']/gi, "")
+      .replace(/id=["'][^"']*["']/gi, "")
+      .replace(/style=["'][^"']*["']/gi, "")
+      .replace(/on\w+=["'][^"']*["']/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    const articleImage = extractImage(cleaned) || extractImage(html);
+
+    return { html: cleaned, image: articleImage };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchAllNews(): Promise<NewsItem[]> {
   const results: NewsItem[] = [];
 
