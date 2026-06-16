@@ -1,10 +1,3 @@
-import Parser from "rss-parser";
-
-const parser = new Parser({
-  timeout: 10000,
-  headers: { "User-Agent": "MadagascarNews/1.0" },
-});
-
 export interface NewsItem {
   id: string;
   title: string;
@@ -38,7 +31,48 @@ function stripHtml(html: string): string {
 }
 
 function encodeId(url: string): string {
-  return Buffer.from(url).toString("base64url").slice(0, 48);
+  let hash = 0;
+  for (let i = 0; i < url.length; i++) {
+    const char = url.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function parseRSS(xml: string, sourceName: string, category: string): NewsItem[] {
+  const items: NewsItem[] = [];
+  const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
+  let match;
+
+  while ((match = itemRegex.exec(xml)) !== null) {
+    const content = match[1];
+    const getTag = (tag: string) => {
+      const m = content.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
+      return m ? m[1].trim() : "";
+    };
+
+    const title = stripHtml(getTag("title"));
+    const link = stripHtml(getTag("link"));
+    const description = getTag("description");
+    const date = getTag("pubDate") || getTag("dc:date");
+    const encoded = getTag("content:encoded") || description;
+
+    if (!title && !link) continue;
+
+    items.push({
+      id: encodeId(link || title),
+      title: title || "Sans titre",
+      link: link || "#",
+      content: encoded,
+      snippet: stripHtml(description).slice(0, 200) || stripHtml(encoded).slice(0, 200),
+      date: date || new Date().toISOString(),
+      image: extractImage(encoded),
+      source: sourceName,
+      category,
+    });
+  }
+  return items;
 }
 
 export async function fetchAllNews(): Promise<NewsItem[]> {
@@ -46,21 +80,15 @@ export async function fetchAllNews(): Promise<NewsItem[]> {
 
   const fetches = sources.map(async (source) => {
     try {
-      const feed = await parser.parseURL(source.url);
-      const items = (feed.items || []).slice(0, 10).map((item) => ({
-        id: encodeId(item.link || item.title || Math.random().toString()),
-        title: item.title || "Sans titre",
-        link: item.link || "#",
-        content: item.content || item.contentSnippet || "",
-        snippet: stripHtml(item.contentSnippet || item.content || "").slice(0, 200),
-        date: item.isoDate || item.pubDate || new Date().toISOString(),
-        image: extractImage(item.content || ""),
-        source: source.name,
-        category: source.category,
-      }));
+      const res = await fetch(source.url, {
+        signal: AbortSignal.timeout(8000),
+        headers: { "User-Agent": "MadagascarNews/1.0" },
+      });
+      const xml = await res.text();
+      const items = parseRSS(xml, source.name, source.category).slice(0, 10);
       results.push(...items);
     } catch {
-      // source unavailable, skip
+      // source unavailable
     }
   });
 
@@ -79,10 +107,10 @@ export async function fetchNewsById(id: string): Promise<NewsItem | null> {
 }
 
 export const categories = [
-  { slug: "actualites", label: "Actualités", emoji: "📰" },
-  { slug: "politique", label: "Politique", emoji: "🏛️" },
-  { slug: "technologie", label: "Technologie", emoji: "💻" },
-  { slug: "economie", label: "Économie", emoji: "📈" },
-  { slug: "sport", label: "Sport", emoji: "⚽" },
-  { slug: "culture", label: "Culture", emoji: "🎭" },
+  { slug: "actualites", label: "Actualités" },
+  { slug: "politique", label: "Politique" },
+  { slug: "technologie", label: "Technologie" },
+  { slug: "economie", label: "Économie" },
+  { slug: "sport", label: "Sport" },
+  { slug: "culture", label: "Culture" },
 ];
